@@ -2,6 +2,7 @@ package views
 
 import (
 	"encoding/json"
+	"fmt"
 	"golang-excel-import/dialects"
 	"golang-excel-import/models"
 	"log"
@@ -83,17 +84,69 @@ func (H *Handlers) StoredData(records []models.Records) {
 
 }
 
-func (H *Handlers) GetAllRecords() ([]models.Records, error) {
+func (H *Handlers) GetAllRecords(limit int, offset int) ([]models.Records, error) {
 	var records []models.Records
 	if conn, err := dialects.GetConnection(); err != nil {
 		log.Println("Failed to connect DB")
 		return nil, err
 	} else {
-		if tx := conn.Debug().Model(&models.Records{}).Order("record_id ASC").Find(&records); tx.Error != nil {
+		if tx := conn.Debug().Model(&models.Records{}).Order("record_id ASC").Limit(limit).Offset(offset).Find(&records); tx.Error != nil {
 			log.Println("Failed to get all records :", tx.Error)
 			return nil, tx.Error
 		} else {
 			return records, nil
+		}
+	}
+}
+
+func (H *Handlers) GetSingleRecords(record *models.Records) (*models.Records, error) {
+	if conn, err := dialects.GetConnection(); err != nil {
+		log.Println("Failed to connect DB")
+		return nil, err
+	} else {
+		if tx := conn.Debug().Model(&models.Records{}).Where("record_id =?", record.RecordID).First(&record); tx.Error != nil {
+			log.Println("Failed to get all records :", tx.Error)
+			return nil, tx.Error
+		} else {
+			return record, nil
+		}
+	}
+}
+
+func (H *Handlers) Update(record *models.Records) error {
+	if conn, err := dialects.GetConnection(); err != nil {
+		log.Println("Failed to connect DB")
+		return err
+	} else {
+		if tx := conn.Debug().Model(&models.Records{}).Where("record_id =?", record.RecordID).Updates(&record).First(&record); tx.Error != nil {
+			log.Println("Failed to get all records :", tx.Error)
+			return tx.Error
+		} else {
+			key := fmt.Sprintf("record:%s", strconv.Itoa(record.RecordID))
+			jsonData, _ := json.Marshal(&record)
+			go dialects.RedisClient.SetE(key, string(jsonData), time.Duration(2*time.Minute))
+			return nil
+		}
+	}
+}
+
+func (H *Handlers) Delete(record *models.Records) error {
+	if conn, err := dialects.GetConnection(); err != nil {
+		log.Println("Failed to connect DB")
+		return err
+	} else {
+		condition := map[string]interface{}{
+			"deleted_at": time.Now(),
+		}
+		if tx := conn.Debug().Model(&models.Records{}).Where("record_id=?", record.RecordID).Updates(condition); tx.Error != nil {
+			log.Println("Failed to get all records :", tx.Error)
+			return tx.Error
+		} else {
+			key := fmt.Sprintf("record:%s", strconv.Itoa(record.RecordID))
+			if _, err := dialects.RedisClient.Get(key); err == nil {
+				go dialects.RedisClient.Delete(key)
+			}
+			return nil
 		}
 	}
 }

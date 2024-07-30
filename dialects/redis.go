@@ -43,3 +43,8 @@ func (r *redisc) SetE(key string, value string, ttl time.Duration) error {
 	}
 	return nil
 }
+
+// Delete removes the specified key from Redis and returns the number of keys that were deleted.
+func (r *redisc) Delete(key string) (int64, error) {
+	return r.rdb.Del(ctx, key).Result()
+}
