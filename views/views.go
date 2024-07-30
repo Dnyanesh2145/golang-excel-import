@@ -90,7 +90,7 @@ func (H *Handlers) GetAllRecords(limit int, offset int) ([]models.Records, error
 		log.Println("Failed to connect DB")
 		return nil, err
 	} else {
-		if tx := conn.Debug().Model(&models.Records{}).Order("record_id ASC").Limit(limit).Offset(offset).Find(&records); tx.Error != nil {
+		if tx := conn.Debug().Model(&models.Records{}).Order("id ASC").Limit(limit).Offset(offset).Find(&records); tx.Error != nil {
 			log.Println("Failed to get all records :", tx.Error)
 			return nil, tx.Error
 		} else {
